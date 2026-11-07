@@ -1,0 +1,21 @@
+line-length = 120
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "I", "UP", "B", "S", "C4"]
+ignore = [
+    "E501",   # Line length handled by formatter
+    "B008",   # FastAPI function calls in argument defaults (File, Depends)
+    "B904",   # Raise ... from err
+    "BLE001", # Blind Exception catching for service resiliency
+    "E741",   # Ambiguous variable name in generator
+    "S110",   # try-except-pass in fallback config parser
+    "S104",   # Possible binding to all interfaces (0.0.0.0)
+    "S108",   # Insecure usage of /tmp (used for Linux container tmpfs mounts)
+    "S311",   # Standard pseudo-random generators
+    "S608",   # SQL injection checks on local sqlite helper
+    "UP045",  # Optional vs pipe
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106"]  # Allow assert and hardcoded strings in tests
