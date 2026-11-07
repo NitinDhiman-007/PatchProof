@@ -7,8 +7,10 @@ import sys
 
 
 def run_audit() -> int:
-    raw_status = subprocess.check_output(["git", "status", "-u", "--porcelain"]).decode().splitlines()
-    candidate_files = [line[3:].strip() for line in raw_status if not line.startswith("!!")]
+    tracked_files = subprocess.check_output(["git", "ls-files"]).decode().splitlines()
+    raw_status = subprocess.check_output(["git", "status", "-s"]).decode().splitlines()
+    untracked_files = [line[3:].strip() for line in raw_status if not line.startswith("!!")]
+    candidate_files = sorted(list(set(tracked_files + untracked_files)))
 
     print(f"Total candidate files to audit: {len(candidate_files)}")
 

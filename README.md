@@ -2,23 +2,97 @@
 
 > **"Don't trust generated code. Prove it works."**
 
-PatchProof is an AI-powered automated bug reproduction, patch generation, and evidence verification platform built for the **BharatCode Build League**.
-
-When AI models propose code changes, automated tests frequently fail to uncover subtle regressions or hallucinations. PatchProof bridges this gap by:
-1. **Ingesting repositories** safely via GitHub URL or ZIP archive without executing code on the host.
-2. **Analyzing bug reports** and extracting affected files and AST symbols using non-executing AST and Tree-sitter parsers.
-3. **Synthesizing root cause analyses** grounded in retrieved source code.
-4. **Generating reproducible failing test cases** (`tests/test_reproduce_patchproof.py`).
-5. **Proving reproduction** in disposable, unprivileged Docker containers (severed network, dropped capabilities).
-6. **Synthesizing minimal unified diff patches** via the BharatCode Model API (`qwen-3.8-27b`).
-7. **Proving patch efficacy** in an isolated Docker sandbox (confirming the regression test turns green and existing tests do not regress).
-8. **Enforcing mandatory human review** before any patch can be accepted or exported.
-9. **Exposing a full Model Context Protocol (MCP) server** for seamless agent and IDE interoperability.
-10. **Compiling immutable, evidence-backed reports with SHA-256 cryptographic integrity hashes**.
+PatchProof is an AI-powered automated bug reproduction, patch generation, and evidence verification platform built for the **BharatCode Build League 2026**.
 
 ---
 
-## Architecture Overview
+## Problem Statement
+
+Modern Large Language Models can generate plausible, syntactically clean code in seconds. However, **generated code cannot be trusted blindly**:
+- **Silent Logic Regressions**: LLM-generated fixes frequently break unstated edge cases or introduce subtle business logic flaws that existing test suites were never written to detect.
+- **Hallucinated Correctness**: AI models confidently assert that a bug is fixed without ever running the code.
+- **Host Security Vulnerabilities**: Running AI-generated code or untrusted user repositories directly on host infrastructure risks remote code execution, secret exfiltration, and filesystem destruction.
+
+---
+
+## The PatchProof Solution
+
+PatchProof replaces unverified trust with empirical proof through a closed-loop verification pipeline:
+> **"A patch is never verified unless a reproducible failing test was run, proven to fail against the unpatched code, turned green by the patch, and validated against the entire regression suite in an isolated sandbox."**
+
+```mermaid
+flowchart LR
+    A["1. Ingest Repo<br/>(Git / ZIP)"] --> B["2. AST Analysis<br/>(Tree-sitter)"]
+    B --> C["3. Reproduce Bug<br/>(Failing Pytest)"]
+    C --> D["4. Baseline Proof<br/>(Docker Exit Code 1)"]
+    D --> E["5. Synthesize Patch<br/>(BharatCode AI)"]
+    E --> F["6. Verify Patch<br/>(Docker Exit Code 0)"]
+    F --> G["7. Human Approval Gate<br/>(Mandatory Review)"]
+    G --> H["8. Evidence Report<br/>(SHA-256 Hash)"]
+```
+
+---
+
+## Key Features
+
+- **AST-Based Repository Intelligence**: Indexes codebases, extracts functions/classes, and retrieves relevant snippets using non-executing Tree-sitter parsers. Untrusted code is never executed on the host.
+- **12-Node LangGraph State Machine**: Orchestrates the multi-stage debugging lifecycle from initial bug report analysis through to cryptographic evidence generation.
+- **Disposable Air-Gapped Docker Sandbox**: Executes test suites inside unprivileged (`1000:1000`), network-severed (`none`), read-only rootfs containers with dropped capabilities (`ALL`).
+- **BharatCode AI Integration**: Uses the official BharatCode OpenAI-compatible API (`qwen-3.8-27b`) for root cause analysis and minimal unified diff synthesis.
+- **Deterministic DEMO_MODE**: Enables zero-credit offline evaluations that deterministically synthesize bug scenarios while executing **real Docker containers** for baseline and patched verification.
+- **Mandatory Human-in-the-Loop Sign-Off**: Prevents automated Git commits or pushes. All proposed patches require explicit developer approval (`pending_approval`).
+- **Cryptographic Evidence Sealing**: Persists verification reports with deterministic SHA-256 integrity hashes for tamper detection.
+- **Model Context Protocol (MCP) Server**: Exposes 9 tools over Streamable HTTP (`/mcp`), stdio, and legacy SSE (`/sse`) for external agent and IDE interoperability.
+
+---
+
+## System Architecture
+
+```mermaid
+graph TD
+    subgraph UI ["Frontend (Next.js 16 / TypeScript / Tailwind CSS)"]
+        Dashboard["Developer Dashboard (localhost:3000)"]
+    end
+
+    subgraph API ["FastAPI Application Gateway & MCP Server (Port 8000)"]
+        Routes["API Routes (/health, /repositories, /analysis, /verification)"]
+        MCP["MCP Server (/mcp Streamable HTTP & /sse)"]
+        Auth["MCP Auth Middleware"]
+    end
+
+    subgraph AGENT ["Agentic Debugging Engine (LangGraph)"]
+        Graph["12-Node Agent Workflow"]
+        Retriever["Tree-sitter AST Symbol Retriever"]
+        PatchApp["Safe Unified Diff Applicator"]
+    end
+
+    subgraph MODEL ["BharatCode AI API"]
+        LLM["qwen-3.8-27b (https://bharatcode.ai/api/model/v1)"]
+    end
+
+    subgraph SANDBOX ["Disposable Docker Sandbox Engine"]
+        Container["python:3.12-slim Container"]
+        Limits["Limits: 512MB RAM | 1 CPU | 64 PIDs | Air-Gapped | Read-Only Root"]
+    end
+
+    subgraph STORE ["Persistence Layer"]
+        DB[(SQLite: patchproof.db)]
+    end
+
+    Dashboard -->|HTTP REST| Routes
+    Routes --> Graph
+    MCP --> Auth
+    Auth --> Routes
+    Graph --> Retriever
+    Graph --> LLM
+    Graph --> PatchApp
+    Graph --> Container
+    Container --> Limits
+    Graph --> DB
+    Routes --> DB
+```
+
+### High-Level Architecture Overview
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -48,7 +122,7 @@ When AI models propose code changes, automated tests frequently fail to uncover 
       │
       ▼
  ┌───────────────────────────────────────────────────────────────────┐
- │ LangGraph Agent State Machine                                     │
+ │ LangGraph Agent State Machine (12 Nodes)                          │
  │  load_context -> analyze_bug -> retrieve_code -> root_cause       │
  │  -> generate_test -> verify_baseline -> generate_patch            │
  │  -> validate_patch -> apply_patch -> verify_docker                │
@@ -66,6 +140,44 @@ When AI models propose code changes, automated tests frequently fail to uncover 
  │  └── Filesystem: Read-only root + scoped tmpfs cache mounts       │
  └───────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## LangGraph 12-Node Workflow
+
+```mermaid
+flowchart TD
+    N1["1. load_context<br/>(Clone/Extract & AST Index)"] --> N2["2. analyze_bug<br/>(Parse Natural Language Bug)"]
+    N2 --> N3["3. retrieve_code<br/>(Extract Defect Context via AST)"]
+    N3 --> N4["4. root_cause<br/>(Structured RCA with BharatCode)"]
+    N4 --> N5["5. generate_test<br/>(Synthesize Failing Pytest)"]
+    N5 --> N6["6. verify_baseline<br/>(Execute in Docker Sandbox)"]
+    N6 -->|Baseline Fails: Bug Proven| N7["7. generate_patch<br/>(Synthesize Unified Diff)"]
+    N6 -->|Baseline Passes: Inconclusive| N12["12. compile_evidence<br/>(Mark INCONCLUSIVE)"]
+    N7 --> N8["8. validate_patch<br/>(Diff Security Validation)"]
+    N8 -->|Valid Diff| N9["9. apply_patch<br/>(Apply to Isolated Workspace)"]
+    N8 -->|Malformed Diff| N7
+    N9 --> N10["10. verify_docker<br/>(Run Pytest & Ruff in Docker)"]
+    N10 --> N11["11. compare_regression<br/>(Compare Baseline vs. Patched)"]
+    N11 --> N12
+    N12 --> N13["Mandatory Human Approval Gate<br/>(patch_status='pending_approval')"]
+```
+
+---
+
+## Technology Stack
+
+| Layer | Technologies |
+|---|---|
+| **Backend & API** | Python 3.12, FastAPI, Uvicorn, Pydantic v2, AnyIO |
+| **Agent & Workflow** | LangGraph, LangChain Core |
+| **Model Integration** | BharatCode OpenAI-compatible API (`https://bharatcode.ai/api/model/v1`, model `qwen-3.8-27b`), OpenAI Python SDK |
+| **Code Intelligence** | Tree-sitter, tree-sitter-python (AST lexical & symbol queries) |
+| **Docker Sandbox** | Docker SDK for Python, `python:3.12-slim` base image, cgroups limits |
+| **MCP Integration** | Official MCP Python SDK (`mcp` 2.3), Streamable HTTP, stdio, SSE |
+| **Persistence** | SQLite 3 (`sqlite:///./patchproof.db`), relational schema & audit logs |
+| **Frontend UI** | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS, Lucide icons |
+| **Testing & Security** | Pytest 9.2, Ruff 0.17, Bandit 1.9 (AST security analyzer) |
 
 ---
 
@@ -464,3 +576,17 @@ backend\.venv\Scripts\python.exe scripts/verify_mcp_happypath.py
 | **Phase 5** | Final QA, Security Audit, MCP Streamable HTTP & Hackathon Submission Readiness | **COMPLETED & VERIFIED** |
 | **Phase 6** | Real Docker End-to-End Verification (Live Containers, 0 Mocks) | **COMPLETED & VERIFIED** |
 | **Phase 7** | Final Hackathon Submission Audit, Repository Hygiene & Verification Report | **COMPLETED & VERIFIED** |
+
+---
+
+## License
+
+This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for complete details.
+
+---
+
+## Submission Repository
+
+- **Public Repository**: [https://github.com/NitinDhiman-007/PatchProof](https://github.com/NitinDhiman-007/PatchProof)
+- **Hackathon Track**: BharatCode Build League 2026
+- **Submission Information File**: [BharatCode.txt](BharatCode.txt)

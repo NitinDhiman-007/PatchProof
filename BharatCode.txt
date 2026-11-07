@@ -1,0 +1,215 @@
+================================================================================
+BHARATCODE BUILD LEAGUE 2026 — SUBMISSION INFORMATION FILE
+================================================================================
+
+1. PROJECT NAME
+   PatchProof
+
+2. TAGLINE
+   Don't trust generated code. Prove it works.
+
+3. PROJECT OVERVIEW
+   PatchProof is an AI-powered automated bug reproduction, patch generation,
+   and evidence verification platform. It accepts GitHub repository URLs or
+   ZIP uploads, analyzes reported software defects using AST-based parsing,
+   synthesizes root cause analyses, generates reproducible failing regression
+   tests, proposes unified diff patches, and empirically proves whether fixes
+   work by executing tests inside air-gapped, rootless Docker sandboxes.
+
+4. PROBLEM STATEMENT
+   Modern Large Language Models frequently generate code that appears plausible
+   and elegant but contains subtle logic errors, corner-case failures, or
+   silent regressions. Blindly trusting AI-generated code introduces severe
+   security vulnerabilities, broken business logic, and developer fatigue.
+   Standard automated tests often fail to catch these defects because existing
+   suites were not written to test the specific bug scenario. Without
+   reproducible verification and empirical proof, AI-generated patches remain
+   an operational liability.
+
+5. SOLUTION
+   PatchProof implements an evidence-first verification loop:
+   "A patch is never verified unless a reproducible failing test was run,
+   proven to fail against the unpatched code, turned green by the patch,
+   and validated against the entire regression suite in an isolated sandbox."
+   
+   PatchProof seamlessly connects:
+   - AST-based repository understanding without host code execution.
+   - Multi-step LangGraph agentic debugging state machine.
+   - Regression test generation that exposes the reported defect.
+   - Disposable rootless Docker container execution.
+   - Unified diff synthesis with strict security validation.
+   - Isolated ephemeral workspace patching (leaving original source intact).
+   - Mandatory human approval gate before any patch can be exported.
+   - Immutable evidence compilation backed by SHA-256 integrity hashes.
+   - Full Model Context Protocol (MCP) server for IDE and agent interoperability.
+
+6. CORE FEATURES
+   - AI-Assisted Bug Analysis: Ingests natural language bug descriptions and
+     maps them to code symbols and affected files.
+   - LangGraph Analysis Workflow: 12-node state machine governing context loading,
+     RCA diagnosis, test synthesis, baseline verification, patch synthesis,
+     sandbox verification, regression comparison, and evidence compilation.
+   - AST-Based Code Retrieval: Employs Tree-sitter concrete syntax tree queries
+     to extract symbols, classes, functions, and line-numbered context safely.
+   - Root Cause Analysis: Structured JSON diagnosis with suspected defect sites
+     and numerical confidence scoring.
+   - Regression Test Generation: Synthesizes reproducible pytest test files
+     (e.g., tests/test_reproduce_patchproof.py) targeted at the defect.
+   - Unified Diff Patch Generation: Generates minimal, focused unified diffs
+     targeting only the defective lines of code.
+   - Isolated Temporary Patch Workspace: Applies patches exclusively to
+     ephemeral workspace copies, ensuring the original repository is never modified.
+   - Mandatory Human Approval: Enforces a strict human-in-the-loop sign-off gate
+     (patch_status='pending_approval'). No patch can be committed or exported
+     without explicit developer authorization.
+   - Real Docker Sandbox Verification: Runs all dynamic execution inside
+     disposable, rootless, air-gapped Docker containers on the official
+     python:3.12-slim base image.
+   - Baseline vs. Patched Comparison: Automatically contrasts test counts,
+     exit codes, stdout, and durations between baseline and patched states.
+   - SHA-256 Verification Evidence: Generates tamper-evident execution reports
+     with deterministic SHA-256 cryptographic hashes.
+   - Nine MCP Tools for AI Agents: Full Model Context Protocol integration
+     exposing repository listing, code search, file reading, bug analysis,
+     status tracking, RCA retrieval, patch inspection, containerized verification,
+     and evidence reporting.
+   - DEMO_MODE for Offline Demonstrations: Provides deterministic, reproducible
+     demonstrations without requiring active LLM API credits, while still
+     executing real Docker containers.
+
+7. TECHNOLOGY STACK
+   - Backend Framework: Python 3.12, FastAPI, Uvicorn, Pydantic v2
+   - Agent & Orchestration: LangGraph, LangChain Core
+   - Model Integration: BharatCode OpenAI-compatible API client, OpenAI Python SDK
+   - Code Intelligence: Tree-sitter (tree-sitter-python AST parser)
+   - Sandbox Execution: Docker SDK for Python, disposable Linux containers
+   - MCP Server: Official Model Context Protocol Python SDK (mcp 2.3)
+   - Transports: Streamable HTTP (/mcp), stdio, and legacy SSE (/sse)
+   - Persistence: SQLite (relational schema, audit trails, evidence storage)
+   - Frontend Application: Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS
+   - Testing & Quality: Pytest 9.2, AnyIO, Ruff linter, Bandit AST security scanner
+
+8. SECURITY ARCHITECTURE
+   PatchProof operates on untrusted codebases under a zero-trust model:
+   - Network Air-Gap: Docker containers execute with network_mode="none",
+     preventing inbound connections and data exfiltration.
+   - Non-Root Execution: Containers run under unprivileged user "1000:1000".
+   - Dropped Capabilities: Containers drop all Linux kernel capabilities
+     (cap_drop=["ALL"]).
+   - Privilege Escalation Prevention: Enforces security_opt=["no-new-privileges:true"].
+   - Read-Only Root Filesystem: Containers run with read_only=True rootfs.
+   - Resource Quotas: 512MB RAM limit, 1.0 CPU quota, 64 PIDs limit, 30s timeout.
+   - Scoped In-Memory Mounts: tmpfs on /tmp (rw,noexec,nosuid,size=64m) for caches.
+   - Command Allowlisting: Only "pytest" and "ruff" binaries permitted with
+     safe flags. Shell interpreters and command chaining metacharacters are blocked.
+   - Archive & Path Defense: In-memory ZIP inspection blocks Zip Slip traversal,
+     path traversal (..), absolute paths, and zip bombs.
+   - Mandatory Human Approval: Automated Git commits/pushes are forbidden.
+   - Cryptographic Integrity: Evidence reports sealed with deterministic SHA-256.
+
+9. DEMONSTRATION SCENARIO (examples/demo_discount_repo)
+   A deterministic Python repository demonstrating a classic business logic bug:
+   - File: calculator/discount.py
+   - Defect: calculate_discount(price, discount) assumes discount is already a
+     decimal fraction (e.g., 0.20) rather than a percentage integer (e.g., 20).
+     Passing 20 yields price - (price * 20) = -19000 instead of 800.
+   - Baseline Execution: The generated regression test executes in a disposable
+     Docker container and fails with exit code 1:
+     assert -19000.0 == 800.0
+   - Patch Synthesis: The proposed unified diff introduces percentage normalization:
+     if discount > 1.0:
+         discount = discount / 100.0
+   - Patched Execution: The patched code executes in a fresh Docker container
+     and passes with exit code 0:
+     2 passed in 0.36s
+   - Isolation Guarantee: The original repository source files remain 100%
+     unmodified throughout the entire process.
+
+10. VERIFICATION RESULTS
+    All verification checks have been empirically executed and passed:
+    - Backend Automated Tests: 65/65 tests passed (100% pass rate in 21.41s).
+    - Code Quality (Ruff): 0 errors (clean across all backend modules).
+    - Security Audit (Bandit): 0 vulnerabilities identified across 4,688 LOC
+      (0 High, 0 Medium, 0 Low).
+    - Frontend Typechecking: TypeScript strict check passed (tsc --noEmit, 0 errors).
+    - Frontend Linting: ESLint passed (0 errors, 0 warnings).
+    - Frontend Production Build: Next.js Turbopack production build succeeded (exit code 0).
+    - Real Docker Baseline Reproduction: Genuinely reproduced defect in container
+      (exit code 1, assert -19000.0 == 800.0).
+    - Real Docker Patched Execution: Genuinely turned green in container
+      (exit code 0, 2 passed).
+    - Real Docker Container Isolation: Verified all 10 isolation controls on live
+      container via Docker API inspect; 0 dangling containers upon disposal.
+    - MCP Tooling Verification: All 9 tools successfully executed over official
+      Streamable HTTP client session.
+
+11. BHARATCODE AI INTEGRATION
+    - Endpoint: Official OpenAI-compatible BharatCode API
+      (https://bharatcode.ai/api/model/v1)
+    - Model: qwen-3.8-27b
+    - Configuration Variable: BHARATCODE_API_KEY
+    - Status Endpoint: GET /api/v1/analysis/model/status
+    
+    IMPORTANT DISCLOSURE:
+    Live BharatCode model inference was NOT tested during local development
+    because the developer account returned HTTP 402 (Payment Required /
+    credits unavailable).
+    
+    DEMO_MODE was implemented and verified end-to-end with real Docker
+    execution. In DEMO_MODE, LLM outputs are deterministically generated
+    and clearly labeled "[DEMO MODE]", while all Docker container test
+    executions, patch applications, and evidence generations run for real.
+    
+    Judges with active BharatCode API credits can test live model inference
+    by configuring their own BHARATCODE_API_KEY in backend/.env with
+    DEMO_MODE=false. The backend code uses the official OpenAI-compatible SDK
+    and endpoint.
+
+12. SETUP INSTRUCTIONS
+    Prerequisites:
+    - Python 3.12+
+    - Node.js 20+ and npm
+    - Docker Desktop or Docker Engine (active)
+
+    Backend Setup:
+    1. cd backend
+    2. cp .env.example .env
+    3. Configure backend/.env:
+       BHARATCODE_API_KEY=your_key_here   # Optional if DEMO_MODE=true
+       DEMO_MODE=true                     # Set to false for live model
+    4. python -m venv .venv
+    5. .venv\Scripts\activate            # Linux/macOS: source .venv/bin/activate
+    6. pip install -r requirements.txt
+    7. python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --app-dir backend
+
+    Frontend Setup:
+    1. cd frontend
+    2. cp .env.example .env.local
+    3. npm install
+    4. npm run dev
+    5. Open http://localhost:3000
+
+    Standalone Automated Verification Scripts:
+    - Real Docker E2E test: python scripts/verify_docker_e2e.py
+    - Live container isolation audit: python scripts/verify_isolation.py
+    - MCP 9-tool Streamable HTTP test: python scripts/verify_mcp_happypath.py
+
+13. REPOSITORY AND DOCUMENTATION
+    - Repository URL: https://github.com/NitinDhiman-007/PatchProof
+    - Main Documentation: README.md
+    - Architecture Guide: docs/ARCHITECTURE.md
+    - Security & Threat Model: docs/SECURITY.md
+    - Local Development Guide: docs/DEVELOPMENT.md
+    - Interactive Swagger API: http://127.0.0.1:8000/docs
+    - Model Status Endpoint: http://127.0.0.1:8000/api/v1/analysis/model/status
+    - Streamable HTTP MCP Endpoint: http://127.0.0.1:8000/mcp
+
+14. SUBMISSION NOTES
+    - Public GitHub Repository: https://github.com/NitinDhiman-007/PatchProof
+    - Submission Track: BharatCode Build League 2026
+    - Deterministic Demo Available: Yes (DEMO_MODE=true enables full Docker
+      verification without requiring paid model credits).
+    - Live Inference Ready: Yes (Judges supply their own BHARATCODE_API_KEY).
+    - Zero Secrets in Repository: Confirmed. No API keys, credentials, tokens,
+      personal paths, or local database files are included in the repository.
+================================================================================
